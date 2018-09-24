@@ -1,3 +1,4 @@
+# test: Query a form from fulcrum (Preventive Maintenance) and publish to postgresql
 # import packages
 import pandas as pd
 import numpy as np
@@ -12,18 +13,25 @@ from config.secrets import *
 form_id = "44359e32-1a7f-41bd-b53e-3ebc039bd21a"
 key = FULCRUM_CRED.get("api_key")
 
-print(key)
-
 # test: Query a form from fulcrum (Preventive Maintenance)
 
-# start a fulcrum instance
-fulcrum = fc.Fulcrum(key = key)
+def recur_dict(col_names, elements):
 
-# print(fulcrum)
-forms = fulcrum.forms.search(url_params={'id': form_id})
-# print(forms)
+    for element in elements:
+        col_names[element.get("key")] = element.get("data_name")
+        for sub_element in element:
+            if type(sub_element) == dict:
+                recur_dict(col_names, sub_element)
+    # for element in elements:
+    #     print(type(element))
+    #     col_names[element.get("key")] = element.get("data_name")
+    #     if type(element) == dict:
+    #         recur_dict(col_names, element)
+    return col_names
 
-def get_elements(form_id):
+
+
+def get_col_names(form_id):
     """Summary
     get a dictionary with {"key": "label"} pair for all columns in a data
     base
@@ -40,14 +48,11 @@ def get_elements(form_id):
     form = fulcrum.forms.find(form_id)
     elements = form.get("form").get("elements")
 
-    columns = {}
+    col_names = {}
 
-    for element in elements:
-    	# column = {element.get("key"): element.get("label")}
-    	# columns.append(column)
-        columns[element.get("key")] = element.get("label")
+    col_names = recur_dict(col_names, elements)
 
-    return columns
+    return col_names
 
 def get_records(form_id):
     """Summary
@@ -55,15 +60,24 @@ def get_records(form_id):
     Args:
         form_id (TYPE): Description
     """
+    # initiate a dataframe
+
+
     records_dirty = fulcrum.records.search(url_params = {"form_id":form_id})
-
-    records_dirty.get("records")
-
-    records = pd.DataFrame.from_dict(records_dirty.get("records"))
     
+    records_list = []
 
+    for record in records_dirty["records"]:
+        records_list.append(record["form_values"])
 
+    records = pd.DataFrame(records_list)
+    
     return records
+
+def interpret_col_name(records):
+
+    return records.rename(columns=col_names)
+
 
 def clean_pm(records):
     df = records.copy()
@@ -92,27 +106,21 @@ def clean_pm(records):
 def main():
     pass
 
-
-
-
-
 if __name__ == "__main__":
-
-    # columns = get_elements(form_id)
-    # print(columns)
+    # start a fulcrum instance
+    fulcrum = fc.Fulcrum(key = key)
+    forms = fulcrum.forms.search(url_params={'id': form_id})
+    # print(forms)
+    col_names = get_col_names(form_id)
     records = get_records(form_id)
 
-    # df = clean_pm(records)
+    # pdb.set_trace()
+
+    records = interpret_col_name(records)
+
+    # print(col_names)
+
     print(list(records))
 
 
 # form = fulcrum.forms.find(form_id)
-
-
-
-# print(form)
-
-# url_params={'form_id': '44359e32-1a7f-41bd-b53e-3ebc039bd21a'} ## PM
-# records = fulcrum.records.search(url_params={'form_id': 'a1cb3ac7-146f-491a-a4a2-47737fb12074'})
-
-# signal_pm_raw = fulcrum.records.find("44359e32-1a7f-41bd-b53e-3ebc039bd21a")
