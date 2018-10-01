@@ -30,8 +30,7 @@ def recur_dict(col_names, elements):
     # print(type(elements))
 
     for element in elements:
-        # print(element)
-        # print(type(element))
+
         if type(element) == dict:
             col_names[element.get("key")] = element.get("data_name")
 
@@ -39,7 +38,6 @@ def recur_dict(col_names, elements):
                 if type(value) == list:
                     recur_dict(col_names, value)
 
-    # print(col_names)
     return col_names
 
 
@@ -83,16 +81,27 @@ def get_records(form_id):
     """
     # initiate a dataframe
 
-
     records_dirty = fulcrum.records.search(url_params = {"form_id":form_id})
-    
-    records_list = []
+
+    records = pd.DataFrame()
+
+
 
     for record in records_dirty["records"]:
-        records_list.append(record["form_values"])
+        form_values = record["form_values"]
+        for key, value in form_values.items():
+            print(value)
+            if type(value) == dict and "choice_values" in value:
+                value = value["choice_values"]
+                
+            if type(value) == list and len(value) == 1:
+                form_values[key] = value[0]
+        form_values["_server_updated_at"] = record["created_at"]
+        form_values["_record_id"] = record["id"]
+        new_row = pd.DataFrame([form_values], columns=form_values.keys())
+    #     print(new_row)
+        records = pd.concat([new_row, records], axis =0, sort=False).reset_index(drop=True)
 
-    records = pd.DataFrame(records_list)
-    
     return records
 
 def interpret_col_name(records):
@@ -131,16 +140,19 @@ if __name__ == "__main__":
     # start a fulcrum instance
     fulcrum = fc.Fulcrum(key = key)
     forms = fulcrum.forms.search(url_params={'id': form_id})
-    # print(forms)
     col_names = get_col_names(form_id)
     records = get_records(form_id)
 
-    # pdb.set_trace()
+    
 
     records = interpret_col_name(records)
 
-    # print(col_names)
+    pdb.set_trace()
 
-    # print(col_names)
+    records = clean_pm(records)
+
 
     print(list(records))
+    print(records)
+
+    pdb.set_trace()
