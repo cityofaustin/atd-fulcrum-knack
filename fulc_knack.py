@@ -16,17 +16,30 @@ key = FULCRUM_CRED.get("api_key")
 # test: Query a form from fulcrum (Preventive Maintenance)
 
 def recur_dict(col_names, elements):
+    """Summary
+    
+    Args:
+        col_names (TYPE): Description
+        elements (TYPE): Description
+    
+    Returns:
+        TYPE: Description
+    """
+
+
+    # print(type(elements))
 
     for element in elements:
-        col_names[element.get("key")] = element.get("data_name")
-        for sub_element in element:
-            if type(sub_element) == dict:
-                recur_dict(col_names, sub_element)
-    # for element in elements:
-    #     print(type(element))
-    #     col_names[element.get("key")] = element.get("data_name")
-    #     if type(element) == dict:
-    #         recur_dict(col_names, element)
+        # print(element)
+        # print(type(element))
+        if type(element) == dict:
+            col_names[element.get("key")] = element.get("data_name")
+
+            for key, value in element.items():
+                if type(value) == list:
+                    recur_dict(col_names, value)
+
+    # print(col_names)
     return col_names
 
 
@@ -40,6 +53,11 @@ def get_col_names(form_id):
     
     Args:
         form_id (TYPE): Description
+    
+    
+    
+    Returns:
+        TYPE: Description
     
     
     
@@ -59,6 +77,9 @@ def get_records(form_id):
     
     Args:
         form_id (TYPE): Description
+    
+    Returns:
+        TYPE: Description
     """
     # initiate a dataframe
 
@@ -120,7 +141,6 @@ if __name__ == "__main__":
 
     # print(col_names)
 
+    # print(col_names)
+
     print(list(records))
-
-
-# form = fulcrum.forms.find(form_id)
