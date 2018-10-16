@@ -1,3 +1,10 @@
+"""Summary
+
+Attributes:
+    form_id (str): Description
+    key (TYPE): Description
+    pgrest (TYPE): Description
+"""
 # test: Query a form from fulcrum (Preventive Maintenance) and publish to postgresql
 # import packages
 import pandas as pd
@@ -6,12 +13,20 @@ import knackpy as kp
 import fulcrum as fc
 import requests
 import pdb
+import json
 from datetime import datetime, timedelta
 # import credentials
 from config.secrets import *
 
+from tdutils.pgrestutil import Postgrest
+
+
 form_id = "44359e32-1a7f-41bd-b53e-3ebc039bd21a"
 key = FULCRUM_CRED.get("api_key")
+
+# create postgrest instance
+pgrest = Postgrest("http://transportation-data-test.austintexas.io/signal_pms", auth=JOB_DB_API_TOKEN_test)
+
 
 # test: Query a form from fulcrum (Preventive Maintenance)
 
@@ -90,12 +105,17 @@ def get_records(form_id):
     for record in records_dirty["records"]:
         form_values = record["form_values"]
         for key, value in form_values.items():
-            print(value)
+            # print(value)
             if type(value) == dict and "choice_values" in value:
                 value = value["choice_values"]
+                if type(value) == list and len(value) == 2:
+                    if key == "fce3":
+                        form_values[key] = value[1]
                 
             if type(value) == list and len(value) == 1:
                 form_values[key] = value[0]
+            
+                
         form_values["_server_updated_at"] = record["created_at"]
         form_values["_record_id"] = record["id"]
         new_row = pd.DataFrame([form_values], columns=form_values.keys())
@@ -105,35 +125,103 @@ def get_records(form_id):
     return records
 
 def interpret_col_name(records):
-
+    """Summary
+    
+    Args:
+        records (TYPE): Description
+    
+    Returns:
+        TYPE: Description
+    """
     return records.rename(columns=col_names)
 
 
 def clean_pm(records):
-    df = records.copy()
+    """Summary
+    
+    Args:
+        records (TYPE): Description
+    
+    Returns:
+        TYPE: Description
+    """
 
-    df["SIGNAL_ID"] = df["signal"].str.split("|").str[0]
+    
+    df = records.copy()
+    
+#     print(df)
+
+    df["signal_id"] = df["signal"].str.split("|").str[0]
 
     # rename record_id to fulcrum ID
-    df = df.rename(columns={'_record_id': 'FULCRUM_ID'})
+    df = df.rename(columns={'_record_id': 'fulcrum_id'})
 
     df["_server_updated_at"] = df["_server_updated_at"].str.strip("CDT")
-    df["PM_COMPLETED_DATETIME"] = pd.to_datetime(df["_server_updated_at"], format = "%Y-%m-%d %H:%M:%S")
-    df["PM_COMPLETED_DATE"] = df["PM_COMPLETED_DATETIME"].dt.date
+    df["pm_completed_datetime"] = pd.to_datetime(df["_server_updated_at"], format = "%Y-%m-%d %H:%M:%S")
+    df["pm_completed_date"] = df["pm_completed_datetime"].dt.date
+    
+#     print(df["technicians"])
 
-    df["PM_COMPLETED_BY"] = df["technicians"].str.split(",").str[1]
+    df["pm_completed_by"] = df["technicians"]#.str.split(",").str[1]
     df["modified_current"] = datetime.now().replace(microsecond=0).isoformat(" ")
 
     df["modified_current"] =pd.to_datetime(df["modified_current"], format = "%Y-%m-%d %H:%M:%S")
 
-    df["MODIFIED_DATE"] = df["modified_current"] + timedelta(minutes = 20)
+    df["modified_date"] = df["modified_current"] + timedelta(minutes = 20)
 
-    df = df[["SIGNAL_ID", "FULCRUM_ID", "PM_COMPLETED_DATE", "MODIFIED_DATE", "PM_COMPLETED_BY"]]
+    # cleaned_record = df[["signal_id", "fulcrum_id", "pm_completed_date", "modified_date", "pm_completed_by"]]
 
-    return df
+    cleaned_record = df[["fulcrum_id"]]
 
+    return cleaned_record
+
+def get_pgrest_records():
+    # the datetime converstin for modified_date is not right. The time part are missing
+
+    results = pgrest.select('')
+    pdb.set_trace()
+    results = pd.DataFrame(results)
+    results["modified_date"] = pd.to_datetime(results["modified_date"], format='%Y-%m-%dT%H:%M:%S')
+#     results["modified_date"] = results["modified_date"](format="'%Y-%m-%dT%H:%M:%S'")
+    results["pm_completed_date"] = pd.to_datetime(results["pm_completed_date"])
+    
+    return results
+
+def get_most_recent():
+    """Summary
+
+    
+    Returns:
+        TYPE: Description
+    """
+
+    results = pgrest.select('fulcrum_id=eq.abc123')
+    return results
+
+def prepare_payload(fulcrum_records, pgrest_records):
+    # compare the modified date and fulcrum id in fulcrum records and 
+    # in postgrest record. 
+        
+    return fulcrum_records[~fulcrum_records['fulcrum_id'].isin(pgrest_records['fulcrum_id'])]
+
+def upload_pgrest(payload):
+    
+    payload = payload.to_dict(orient='records')
+    pdb.set_trace()
+
+    payload = json.dumps(payload, indent=4, sort_keys=True, default=str)
+
+    payload = payload
+    pdb.set_trace()
+
+    res = pgrest.insert(payload)
+
+
+    return res
 
 def main():
+    """Summary
+    """
     pass
 
 if __name__ == "__main__":
@@ -147,12 +235,18 @@ if __name__ == "__main__":
 
     records = interpret_col_name(records)
 
-    pdb.set_trace()
+    pgrest_records = get_pgrest_records()
+    fulcrum_records = clean_pm(records)
 
-    records = clean_pm(records)
+    payload = prepare_payload(fulcrum_records, pgrest_records)
+
+    # pdb.set_trace()
+    status = upload_pgrest(payload)
+    
+    print(status)
 
 
-    print(list(records))
-    print(records)
+    # print(list(records))
+    # print(records)
 
-    pdb.set_trace()
+    # pdb.set_trace()

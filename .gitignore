@@ -2,3 +2,6 @@
 config/secrets.py
 data/*.csv
 *.pyc
+test_dict.py
+type.yaml
+test_dict.py
