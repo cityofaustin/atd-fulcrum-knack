@@ -204,28 +204,33 @@ def get_pgrest_records():
     results = pd.DataFrame(results)
     results["modified_date"] = pd.to_datetime(
         results["modified_date"], format="%Y-%m-%dT%H:%M:%S"
-    )
-    #     results["modified_date"] = results["modified_date"](format="'%Y-%m-%dT%H:%M:%S'")
-    results["pm_completed_date"] = pd.to_datetime(results["pm_completed_date"])
+    ).apply(
+        lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%S'))
+
+    # results["modified_date"] = results["modified_date"](format="'%Y-%m-%dT%H:%M:%S'")
+    results["pm_completed_date"] = pd.to_datetime(results["pm_completed_date"]).apply(
+        lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%S'))
 
     return results
 
 
-def get_most_recent():
-    """Summary
+# def get_most_recent():
+#     """Summary
     
     
-    Returns:
-        TYPE: Description
-    """
+#     Returns:
+#         TYPE: Description
+#     """
 
-    results = pgrest.select("fulcrum_id=eq.abc123")
-    return results
+#     results = pgrest.select("fulcrum_id=eq.abc123")
+#     return results
 
 
 def prepare_payload(fulcrum_records, pgrest_records):
     """Summary
     
+    #TODO incremental update with the more recent run date
+
     Args:
         fulcrum_records (TYPE): Description
         pgrest_records (TYPE): Description
