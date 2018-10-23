@@ -89,6 +89,30 @@ def get_col_names(form_id):
 
     return col_names
 
+def cli_args():
+
+    parser = argutil.get_parser(
+        "--replace"
+        "--last_run_date",
+    )
+
+    args = parser.parse_args()
+
+    return args
+
+def get_last_run():
+    """Summary
+    """
+
+    last_run_date = args.last_run_date
+
+    if not last_run_date or args.replace:
+        # replace dataset by setting the last run date to a long, long time ago
+        # the arrow package needs a specific date and timeformat
+        last_run_date = "1970-01-01"
+
+
+    pass
 
 def get_records(form_id):
     """Summary
