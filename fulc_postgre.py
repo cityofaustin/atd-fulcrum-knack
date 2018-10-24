@@ -61,7 +61,7 @@ def recur_dict(col_names, elements):
     return col_names
 
 
-def get_col_names(form_id):
+def get_col_names(fulcrum, form_id):
     """Summary
     get a dictionary with {"key": "label"} pair for all columns in a data
     base
@@ -112,9 +112,9 @@ def get_last_run():
         last_run_date = "1970-01-01"
 
 
-    pass
+    return last_run_date
 
-def get_records(form_id):
+def get_fulcrum_records(fulcrum, form_id):
     """Summary
     
     Args:
@@ -153,7 +153,7 @@ def get_records(form_id):
     return records
 
 
-def interpret_col_name(records):
+def interpret_col_name(col_names, records):
     """Summary
     
     Args:
@@ -225,17 +225,20 @@ def get_pgrest_records():
 
     results = pgrest.select("")
     # pdb.set_trace()
-    results = pd.DataFrame(results)
-    results["modified_date"] = pd.to_datetime(
-        results["modified_date"], format="%Y-%m-%dT%H:%M:%S"
-    ).apply(
-        lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%S'))
+    pdb.set_trace()
+    if len(results) != 0:
+        results = pd.DataFrame(results)
+        results["modified_date"] = pd.to_datetime(
+            results["modified_date"], format="%Y-%m-%dT%H:%M:%S"
+        ).apply(
+            lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%S'))
 
-    # results["modified_date"] = results["modified_date"](format="'%Y-%m-%dT%H:%M:%S'")
-    results["pm_completed_date"] = pd.to_datetime(results["pm_completed_date"]).apply(
-        lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%S'))
 
-    return results
+        # results["modified_date"] = results["modified_date"](format="'%Y-%m-%dT%H:%M:%S'")
+        results["pm_completed_date"] = pd.to_datetime(results["pm_completed_date"]).apply(
+            lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%S'))
+    else:
+        return results
 
 
 # def get_most_recent():
@@ -283,9 +286,13 @@ def prepare_payload(fulcrum_records, pgrest_records):
 
     # ]
 
-    payloads = fulcrum_records[
-        ~fulcrum_records["fulcrum_id"].isin(pgrest_records["fulcrum_id"])
-    ]
+    if len(pgrest_records) != 0:
+
+        payloads = fulcrum_records[
+            ~fulcrum_records["fulcrum_id"].isin(pgrest_records["fulcrum_id"])
+        ]
+    else:
+        payloads = fulcrum_records
 
     payloads = payloads.to_dict(orient="records")
 
@@ -295,7 +302,7 @@ def prepare_payload(fulcrum_records, pgrest_records):
     return payloads
 
 
-def upload_pgrest(payload):
+def upsert_pgrest(payloads):
     """Summary
     
     Args:
@@ -321,28 +328,28 @@ def upload_pgrest(payload):
 def main():
     """Summary
     """
-    pass
-
-
-if __name__ == "__main__":
-    # start a fulcrum instance
     fulcrum = fc.Fulcrum(key=key)
     forms = fulcrum.forms.search(url_params={"id": form_id})
-    col_names = get_col_names(form_id)
-    records = get_records(form_id)
+    col_names = get_col_names(fulcrum, form_id)
+    records = get_fulcrum_records(fulcrum, form_id)
 
-    records = interpret_col_name(records)
+    records = interpret_col_name(col_names, records)
 
     pgrest_records = get_pgrest_records()
+
+    # if len(pgrest_records) != 0:
     fulcrum_records = clean_pm(records)
     # pdb.set_trace()
     # payload = fulcrum_records
     payloads = prepare_payload(fulcrum_records, pgrest_records)
 
     pdb.set_trace()
-    status = upload_pgrest(payloads)
+    status = upsert_pgrest(payloads)
+    return status
 
-    print(status)
+if __name__ == "__main__":
+    # start a fulcrum instance
+    print(main())
 
     # print(list(records))
     # print(records)
