@@ -148,7 +148,7 @@ def get_fulcrum_records(fulcrum, form_id):
         form_values["_server_updated_at"] = record["created_at"]
         form_values["_record_id"] = record["id"]
         new_row = pd.DataFrame([form_values], columns=form_values.keys())
-        records = pd.concat([new_row, records], axis=0, sort=False).reset_index(
+        records = pd.concat([new_row, records], axis=0).reset_index(
             drop=True
         )
 
@@ -298,7 +298,7 @@ def main():
     payloads = prepare_payload(fulcrum_records, pgrest_records)
 
     status = upsert_pgrest(payloads)
-
+    status = len(status)
     return status
 
 
