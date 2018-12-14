@@ -26,8 +26,8 @@ key = FULCRUM_CRED.get("api_key")
 
 # create postgrest instance
 pgrest = Postgrest(
-    "http://transportation-data-test.austintexas.io/signal_pms",
-    auth=JOB_DB_API_TOKEN_test,
+    "http://transportation-data.austintexas.io/signal_pms",
+    auth=JOB_DB_API_TOKEN,
 )
 
 
