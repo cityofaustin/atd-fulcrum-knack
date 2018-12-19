@@ -15,10 +15,12 @@ import requests
 import pdb
 import json
 from datetime import datetime, timedelta
+from pypgrest import Postgrest
+
 
 from config.secrets import *
 
-from tdutils.pgrestutil import Postgrest
+# from tdutils.pgrestutil import Postgrest
 
 
 form_id = "44359e32-1a7f-41bd-b53e-3ebc039bd21a"
@@ -218,7 +220,8 @@ def get_pgrest_records():
     """
     # the datetime converstin for modified_date is not right. The time part are missing
 
-    results = pgrest.select("*")
+    params = {}
+    results = pgrest.select(params = params)
 
     if len(results) != 0:
         results = pd.DataFrame(results)
@@ -229,9 +232,11 @@ def get_pgrest_records():
         results["pm_completed_date"] = pd.to_datetime(
             results["pm_completed_date"]
         ).apply(lambda x: datetime.strftime(x, "%Y-%m-%dT%H:%M:%S"))
+
     else:
         return results
 
+    return results
 
 def prepare_payload(fulcrum_records, pgrest_records):
     """Summary
@@ -248,8 +253,7 @@ def prepare_payload(fulcrum_records, pgrest_records):
     # compare the modified date and fulcrum id in fulcrum records and
     # in postgrest record.
 
-    if pgrest_records:
-
+    if not pgrest_records.empty:
         payloads = fulcrum_records[
             ~fulcrum_records["fulcrum_id"].isin(pgrest_records["fulcrum_id"])
         ]
@@ -295,12 +299,12 @@ def main():
     pgrest_records = get_pgrest_records()
 
     fulcrum_records = clean_pm(records)
+
     payloads = prepare_payload(fulcrum_records, pgrest_records)
 
     status = upsert_pgrest(payloads)
     status = len(status)
     return status
-
 
 if __name__ == "__main__":
     # start a fulcrum instance
