@@ -136,13 +136,16 @@ def get_fulcrum_records(fulcrum, form_id):
 
     for record in records_dirty["records"]:
         form_values = record["form_values"]
+
         for key, value in form_values.items():
 
             if type(value) == dict and "choice_values" in value:
                 value = value["choice_values"]
-                if type(value) == list and len(value) == 2:
+                if type(value) == list and len(value) >=2:
+                    # print(value)
                     if key == "fce3":
                         form_values[key] = value[1]
+                        # print(form_values[key])
 
             if type(value) == list and len(value) == 1:
                 form_values[key] = value[0]
@@ -194,6 +197,9 @@ def clean_pm(records):
     df["pm_completed_date"].apply(lambda x: datetime.strftime(x, "%Y-%m-%dT%H:%M:%S"))
 
     df["pm_completed_by"] = df["technicians"]  # .str.split(",").str[1]
+
+    # pdb.set_trace()
+
     df["modified_date"] = datetime.now().isoformat(timespec="seconds")
 
     df["pm_completed_date"] = df["pm_completed_date"].astype(str)
@@ -265,6 +271,7 @@ def prepare_payload(fulcrum_records, pgrest_records):
     return payloads
 
 
+
 def upsert_pgrest(payloads):
     """Summary
     
@@ -282,6 +289,22 @@ def upsert_pgrest(payloads):
 
     return res
 
+def prepare_replace_payload(fulcrum_records, pgrest_records):
+    
+    fulcrum_compare_dict = {}
+
+    replace_payload = []
+
+    for record in fulcrum_records:
+        fulcrum_compare_dict[record["fulcrum_id"]] = record
+
+    for record in pgrest_records.items():
+        for key, info in record.items():
+            if info != fulcrum_compare_dict[record["fulcrum_id"]][key]:
+                replace_payload.append(record)
+
+    return replace_payload
+
 
 def main():
     """Summary
@@ -289,6 +312,8 @@ def main():
     Returns:
         TYPE: Description
     """
+    args = cli_args()
+
     fulcrum = fc.Fulcrum(key=key)
     forms = fulcrum.forms.search(url_params={"id": form_id})
     col_names = get_col_names(fulcrum, form_id)
@@ -302,8 +327,14 @@ def main():
 
     payloads = prepare_payload(fulcrum_records, pgrest_records)
 
+    if args.replace:
+        payloads = prepare_replace_payload(fulcrum_records, pgrest_records)
+    else:
+        payloads = prepare_payload(fulcrum_records, pgrest_records)
+        
     status = upsert_pgrest(payloads)
     status = len(status)
+    
     return status
 
 if __name__ == "__main__":
