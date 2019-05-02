@@ -16,6 +16,7 @@ import pdb
 import json
 from datetime import datetime, timedelta
 from pypgrest import Postgrest
+from tdutils import argutil
 
 
 from config.secrets import *
@@ -28,8 +29,7 @@ key = FULCRUM_CRED.get("api_key")
 
 # create postgrest instance
 pgrest = Postgrest(
-    "http://transportation-data.austintexas.io/signal_pms",
-    auth=JOB_DB_API_TOKEN,
+    "http://transportation-data.austintexas.io/signal_pms", auth=JOB_DB_API_TOKEN
 )
 
 
@@ -95,7 +95,12 @@ def cli_args():
     Returns:
         TYPE: Description
     """
-    parser = argutil.get_parser("--replace" "--last_run_date")
+    parser = argutil.get_parser(
+        "fulc_postgre.py"
+        "move signal Preventive Maintenance work orders from fulcrum to postgresql database",
+        "--last_run_date",
+        "--replace"
+    )
 
     args = parser.parse_args()
 
@@ -141,11 +146,9 @@ def get_fulcrum_records(fulcrum, form_id):
 
             if type(value) == dict and "choice_values" in value:
                 value = value["choice_values"]
-                if type(value) == list and len(value) >=2:
-                    # print(value)
+                if type(value) == list and len(value) >= 2:
                     if key == "fce3":
                         form_values[key] = value[1]
-                        # print(form_values[key])
 
             if type(value) == list and len(value) == 1:
                 form_values[key] = value[0]
@@ -153,10 +156,9 @@ def get_fulcrum_records(fulcrum, form_id):
         form_values["_server_updated_at"] = record["created_at"]
         form_values["_record_id"] = record["id"]
         new_row = pd.DataFrame([form_values], columns=form_values.keys())
-        records = pd.concat([new_row, records], axis=0).reset_index(
-            drop=True
-        )
+        records = pd.concat([new_row, records], axis=0).reset_index(drop=True)
 
+        # print(records)
     return records
 
 
@@ -227,7 +229,7 @@ def get_pgrest_records():
     # the datetime converstin for modified_date is not right. The time part are missing
 
     params = {}
-    results = pgrest.select(params = params)
+    results = pgrest.select(params=params)
 
     if len(results) != 0:
         results = pd.DataFrame(results)
@@ -244,6 +246,7 @@ def get_pgrest_records():
 
     return results
 
+
 def prepare_payload(fulcrum_records, pgrest_records):
     """Summary
     
@@ -258,6 +261,7 @@ def prepare_payload(fulcrum_records, pgrest_records):
     """
     # compare the modified date and fulcrum id in fulcrum records and
     # in postgrest record.
+    # print(fulcrum_records)
 
     if not pgrest_records.empty:
         payloads = fulcrum_records[
@@ -267,9 +271,9 @@ def prepare_payload(fulcrum_records, pgrest_records):
         payloads = fulcrum_records
 
     payloads = payloads.to_dict(orient="records")
+    # print(payloads)
 
     return payloads
-
 
 
 def upsert_pgrest(payloads):
@@ -284,24 +288,64 @@ def upsert_pgrest(payloads):
     Deleted Parameters:
         payload (TYPE): Description
     """
+    pdb.set_trace()
 
     res = pgrest.upsert(payloads)
 
+    # a safety that delete older records and add new records
+    pgrest_records = get_pgrest_records
+    
+
+
     return res
 
+
 def prepare_replace_payload(fulcrum_records, pgrest_records):
-    
-    fulcrum_compare_dict = {}
+
+    # create a replace method that refresh records in the postgreSQL database
+    # previous replace method does not correctlly executed 
+    # pdb.set_trace()
 
     replace_payload = []
 
-    for record in fulcrum_records:
-        fulcrum_compare_dict[record["fulcrum_id"]] = record
+    fulcrum_records = fulcrum_records.to_dict(orient="records")
+    # make fulcrum ID as the key to the pgrest_records
+    pgrest_records["index_temp"] = pgrest_records["fulcrum_id"]
+    pgrest_records = pgrest_records.set_index("index_temp")
+    pgrest_records = pgrest_records.to_dict(orient="index")
+    
 
-    for record in pgrest_records.items():
-        for key, info in record.items():
-            if info != fulcrum_compare_dict[record["fulcrum_id"]][key]:
-                replace_payload.append(record)
+    for fulcrum_record in fulcrum_records:
+        # loop all fulcrum record
+        fulcrum_id = fulcrum_record["fulcrum_id"] # take the fulcrum id as the key
+        if fulcrum_id in pgrest_records:
+        # update the record in pgrest database if the fulcrum id is alread a key in pgrest records
+            for key, value in fulcrum_record.items():
+                # compare the fulcrum records and pgrestSQL records
+                if  pgrest_records[fulcrum_id][key] != fulcrum_record[key]:
+                    if key != "pm_completed_date" and key!="modified_date":
+                        pgrest_records[fulcrum_id][key] = fulcrum_record[key]
+                        # print(pgrest_records[fulcrum_id][key])
+                        # print(fulcrum_record[key])
+                        fulcrum_record["pm_completed_by"] = min(fulcrum_record["pm_completed_by"], pgrest_records[fulcrum_id]["pm_completed_by"])
+                        replace_payload.append(fulcrum_record)
+                        break
+        else:
+            # print(fulcrum_record)
+            replace_payload.append(fulcrum_record)
+
+
+
+
+    # payloads = payloads.to_dict(orient="records")
+
+    # for record in fulcrum_records:
+    #     fulcrum_compare_dict[record["fulcrum_id"]] = record
+
+    # for record in pgrest_records.items():
+    #     for key, info in record.items():
+    #         if info != fulcrum_compare_dict[record["fulcrum_id"]][key]:
+    #             replace_payload.append(record)
 
     return replace_payload
 
@@ -329,14 +373,31 @@ def main():
 
     if args.replace:
         payloads = prepare_replace_payload(fulcrum_records, pgrest_records)
+        
     else:
         payloads = prepare_payload(fulcrum_records, pgrest_records)
-        
+
     status = upsert_pgrest(payloads)
     status = len(status)
-    
+
     return status
+
 
 if __name__ == "__main__":
     # start a fulcrum instance
-    print(main())
+    fulcrum = fc.Fulcrum(key=key)
+    forms = fulcrum.forms.search(url_params={"id": form_id})
+    col_names = get_col_names(fulcrum, form_id)
+
+    records = get_fulcrum_records(fulcrum, form_id)
+    records = interpret_col_name(col_names, records)
+
+    pgrest_records = get_pgrest_records()
+    pdb.set_trace()
+
+    fulcrum_records = clean_pm(records)
+
+    # payloads = prepare_payload(fulcrum_records, pgrest_records)
+    replace_payload = prepare_replace_payload(fulcrum_records, pgrest_records)
+    # status = main()
+    # print(replace_payload)
