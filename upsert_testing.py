@@ -73,5 +73,5 @@ merged = duplicates.merge(record_old_df, indicator=True, how='outer')
 delete_payload_df = merged[merged['_merge'] == 'both']
 delete_payload_df = delete_payload_df.drop(columns = '_merge')
 delete_payload = delete_payload_df.to_dict(orient = "record")
-print(delete_payload)
-pgrest.delete(params = delete_payload)
+
+res = pgrest.delete(delete_payload)
