@@ -288,7 +288,6 @@ def upsert_pgrest(payloads):
     Deleted Parameters:
         payload (TYPE): Description
     """
-    pdb.set_trace()
 
     res = pgrest.upsert(payloads)
 
@@ -393,7 +392,6 @@ if __name__ == "__main__":
     records = interpret_col_name(col_names, records)
 
     pgrest_records = get_pgrest_records()
-    pdb.set_trace()
 
     fulcrum_records = clean_pm(records)
 
