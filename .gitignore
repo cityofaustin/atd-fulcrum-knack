@@ -5,3 +5,4 @@ data/*.csv
 test_dict.py
 type.yaml
 test_dict.py
+.DS_Store
